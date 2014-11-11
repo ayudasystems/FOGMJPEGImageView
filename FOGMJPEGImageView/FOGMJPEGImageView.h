@@ -38,6 +38,15 @@
 - (void)startWithURL:(NSURL *)url;
 
 /**
+ Begins reading MJPEG data from the given request.
+ 
+ Successive calls to `startWithRequest:` without first calling `stop` will be ignored.
+ 
+ @param url The URL of the MJPEG feed, if nil is passed the call will be ignored.
+ */
+- (void)startWithRequest:(NSURLRequest *)request;
+
+/**
  Stops reading MJPEG data.
  
  Successive calls to stop will be ignored and have no effect.

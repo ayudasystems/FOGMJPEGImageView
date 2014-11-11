@@ -43,6 +43,13 @@
 - (void)startReadingFromURL:(NSURL *)URL;
 
 /**
+ Begins reading MJPEG data from the given Request.
+ 
+ @param request The request used to retrieve for the MJPEG data.
+ */
+- (void)startReadingFromRequest:(NSURLRequest *)request;
+
+/**
  Stops reading MJPEG data.
  */
 - (void)stop;

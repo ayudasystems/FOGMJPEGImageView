@@ -97,6 +97,20 @@
     [self.dataReader startReadingFromURL:url];
 }
 
+- (void)startWithRequest:(NSURLRequest *)request
+{
+    if ( !request ) {
+        return;
+    }
+    
+    if ( self.isReadingData ) {
+        return;
+    }
+    
+    self.isReadingData = YES;
+    [self.dataReader startReadingFromRequest:request];
+}
+
 - (void)stop
 {
     if ( !self.isReadingData ) {
