@@ -84,41 +84,44 @@
 
 - (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveData:(NSData *)data
 {
-    [self.receivedData appendData:data];
-    
-    // if we don't have an end marker then we can continue
-    NSRange endMarkerRange = [self.receivedData rangeOfData:[FOGJPEGImageMarker JPEGEndMarker]
-                                                    options:0
-                                                      range:NSMakeRange(0, [self.receivedData length])];
-    if ( endMarkerRange.location == NSNotFound ) {
-        return;
+    //lock on received data so we do not write to it from different threads
+    @synchronized (self.receivedData) {
+        [self.receivedData appendData:data];
+        
+        // if we don't have an end marker then we can continue
+        NSRange endMarkerRange = [self.receivedData rangeOfData:[FOGJPEGImageMarker JPEGEndMarker]
+                                                        options:0
+                                                          range:NSMakeRange(0, [self.receivedData length])];
+        if ( endMarkerRange.location == NSNotFound ) {
+            return;
+        }
+        
+        // if we don't have a start marker prior to the end marker discard bytes and continue
+        NSRange startMarkerRange = [self.receivedData rangeOfData:[FOGJPEGImageMarker JPEGStartMarker]
+                                                          options:0
+                                                            range:NSMakeRange(0, endMarkerRange.location)];
+        if ( startMarkerRange.location == NSNotFound ) {
+            // todo: should trim receivedData to endMarkerRange.location + 2 until end
+            return;
+        }
+        
+        NSUInteger imageDataLength = (endMarkerRange.location + 2) - startMarkerRange.location;
+        NSRange imageDataRange = NSMakeRange(startMarkerRange.location, imageDataLength);
+        NSData *imageData = [self.receivedData subdataWithRange:imageDataRange];
+        UIImage *image = [UIImage imageWithData:imageData scale:0.5];
+        
+        if ( image ) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                __strong id<FOGMJPEGDataReaderDelegate> strongDelegate = self.delegate;
+                [strongDelegate FOGMJPEGDataReader:self receivedImage:image];
+            });
+        }
+        
+        NSUInteger newStartLocation = endMarkerRange.location + 2;
+        NSUInteger newDataLength = [self.receivedData length] - newStartLocation;
+        NSData *unusedData = [self.receivedData subdataWithRange:NSMakeRange(newStartLocation, newDataLength)];
+        self.receivedData = [NSMutableData dataWithData:unusedData];
     }
-    
-    // if we don't have a start marker prior to the end marker discard bytes and continue
-    NSRange startMarkerRange = [self.receivedData rangeOfData:[FOGJPEGImageMarker JPEGStartMarker]
-                                                      options:0
-                                                        range:NSMakeRange(0, endMarkerRange.location)];
-    if ( startMarkerRange.location == NSNotFound ) {
-        // todo: should trim receivedData to endMarkerRange.location + 2 until end
-        return;
-    }
-    
-    NSUInteger imageDataLength = (endMarkerRange.location + 2) - startMarkerRange.location;
-    NSRange imageDataRange = NSMakeRange(startMarkerRange.location, imageDataLength);
-    NSData *imageData = [self.receivedData subdataWithRange:imageDataRange];
-    UIImage *image = [UIImage imageWithData:imageData scale:0.5];
-    
-    if ( image ) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            __strong id<FOGMJPEGDataReaderDelegate> strongDelegate = self.delegate;
-            [strongDelegate FOGMJPEGDataReader:self receivedImage:image];
-        });
-    }
-    
-    NSUInteger newStartLocation = endMarkerRange.location + 2;
-    NSUInteger newDataLength = [self.receivedData length] - newStartLocation;
-    NSData *unusedData = [self.receivedData subdataWithRange:NSMakeRange(newStartLocation, newDataLength)];
-    self.receivedData = [NSMutableData dataWithData:unusedData];
 }
 
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error
